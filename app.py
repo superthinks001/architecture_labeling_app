@@ -5,23 +5,21 @@ from PIL import Image
 import io
 import google.generativeai as genai
 
-# Streamlit config
-st.set_page_config(page_title="AI House Style Classifier", layout="wide")
+# Set up page
+st.set_page_config(page_title="🏡 AI House Style Classifier", layout="wide")
 st.title("🏡 AI Architectural Style Classifier")
 
 # Upload image
 uploaded_file = st.file_uploader("Upload a house image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    # Show image
+    # Show preview
     st.image(uploaded_file, use_container_width=True)
     file_bytes = uploaded_file.read()
     file_name = uploaded_file.name
-
-    # Prepare image for Gemini
     image = Image.open(io.BytesIO(file_bytes))
 
-    # Authenticate Gemini
+    # Configure Gemini
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel("models/gemini-2.5-pro-preview-03-25")
 
@@ -40,16 +38,17 @@ You are an expert in architectural classification. Identify the primary and seco
 }
 """
 
-    # Show loading spinner
-    with st.spinner("🔍 Analyzing architectural style with Gemini..."):
+    # Send to Gemini and get response
+    with st.spinner("🔍 Analyzing architectural style..."):
         try:
             response = model.generate_content([prompt, image])
             result = response.text
         except Exception as e:
-            st.error("❌ Gemini Vision API call failed.")
+            st.error("❌ Gemini API call failed.")
+            st.exception(e)
             st.stop()
 
-    # Display editable form
+    # Parse result
     st.markdown("### 🧠 Predicted Style (Editable)")
     try:
         default = eval(result) if isinstance(result, str) else result
@@ -72,7 +71,7 @@ You are an expert in architectural classification. Identify the primary and seco
     door = st.text_input("Door", default.get("door", ""))
     notes = st.text_area("Additional Notes", default.get("additional_notes", ""))
 
-    # Save results
+    # Save to CSV
     if st.button("✅ Save to Dataset"):
         df = pd.DataFrame([{
             "image_file": file_name,
@@ -90,7 +89,7 @@ You are an expert in architectural classification. Identify the primary and seco
             df.to_csv("style_feedback_dataset.csv", mode='a', header=False, index=False)
         st.success("✅ Saved to dataset!")
 
-    # Dataset view
+    # Show full dataset
     if os.path.exists("style_feedback_dataset.csv"):
         with st.expander("📊 View Full Dataset"):
             df_view = pd.read_csv("style_feedback_dataset.csv")
