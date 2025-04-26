@@ -1,9 +1,11 @@
 import streamlit as st
-import requests
-import base64
 import pandas as pd
 import os
+from PIL import Image
+import io
+import google.generativeai as genai
 
+# Streamlit config
 st.set_page_config(page_title="AI House Style Classifier", layout="wide")
 st.title("🏡 AI Architectural Style Classifier")
 
@@ -11,24 +13,22 @@ st.title("🏡 AI Architectural Style Classifier")
 uploaded_file = st.file_uploader("Upload a house image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    # Show image preview
-    st.image(uploaded_file, use_column_width=True)
+    # Show image
+    st.image(uploaded_file, use_container_width=True)
     file_bytes = uploaded_file.read()
     file_name = uploaded_file.name
 
-    # Gemini Vision API call (live)
-    st.markdown("### 🔍 Analyzing architectural style...")
-    headers = {
-        "Authorization": f"Bearer {st.secrets['GEMINI_API_KEY']}"
-    }
-    api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
+    # Prepare image for Gemini
+    image = Image.open(io.BytesIO(file_bytes))
 
-    # Encode image to base64
-    b64_image = base64.b64encode(file_bytes).decode("utf-8")
-    prompt = {
-        "contents": [{
-            "parts": [
-                {"text": """You are an expert in architectural classification. Identify the primary and secondary style, roof, porch, windows, and door using these label choices:
+    # Authenticate Gemini
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel("models/gemini-2.5-pro-preview-03-25")
+
+    # Prompt
+    prompt = """
+You are an expert in architectural classification. Identify the primary and secondary style, roof, porch, windows, and door using these label choices:
+
 {
   "primary_style": "",
   "secondary_style": "",
@@ -37,24 +37,33 @@ if uploaded_file:
   "windows": "",
   "door": "",
   "additional_notes": ""
-}"""},
-                {
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": b64_image
-                    }
-                }
-            ]
-        }]
-    }
+}
+"""
 
-    # Send to Gemini
-    response = requests.post(api_url, headers=headers, json=prompt)
-    result = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    # Show loading spinner
+    with st.spinner("🔍 Analyzing architectural style with Gemini..."):
+        try:
+            response = model.generate_content([prompt, image])
+            result = response.text
+        except Exception as e:
+            st.error("❌ Gemini Vision API call failed.")
+            st.stop()
 
-    # Extract as editable form
+    # Display editable form
     st.markdown("### 🧠 Predicted Style (Editable)")
-    default = eval(result) if isinstance(result, str) else result
+    try:
+        default = eval(result) if isinstance(result, str) else result
+    except:
+        default = {
+            "primary_style": "",
+            "secondary_style": "",
+            "roof": "",
+            "porch": "",
+            "windows": "",
+            "door": "",
+            "additional_notes": ""
+        }
+
     primary = st.selectbox("Primary Style", options=["Modern", "Craftsman", "Victorian", "Colonial", "Ranch", "Spanish", "Contemporary", "Traditional", "Other"], index=0)
     secondary = st.selectbox("Secondary Style", options=["Modern", "Craftsman", "Victorian", "Colonial", "Ranch", "Spanish", "Contemporary", "Traditional", "Other"], index=0)
     roof = st.text_input("Roof", default.get("roof", ""))
@@ -63,7 +72,7 @@ if uploaded_file:
     door = st.text_input("Door", default.get("door", ""))
     notes = st.text_area("Additional Notes", default.get("additional_notes", ""))
 
-    # Save to dataset
+    # Save results
     if st.button("✅ Save to Dataset"):
         df = pd.DataFrame([{
             "image_file": file_name,
@@ -81,7 +90,7 @@ if uploaded_file:
             df.to_csv("style_feedback_dataset.csv", mode='a', header=False, index=False)
         st.success("✅ Saved to dataset!")
 
-    # Preview dataset
+    # Dataset view
     if os.path.exists("style_feedback_dataset.csv"):
         with st.expander("📊 View Full Dataset"):
             df_view = pd.read_csv("style_feedback_dataset.csv")
