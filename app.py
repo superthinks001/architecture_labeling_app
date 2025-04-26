@@ -21,7 +21,7 @@ if uploaded_file:
 
     # Configure Gemini
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("models/gemini-2.5-pro-preview-03-25")
+    model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
 
     # Prompt
     prompt = """
