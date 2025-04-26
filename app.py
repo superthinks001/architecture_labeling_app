@@ -19,7 +19,7 @@ if uploaded_file:
     # Gemini Vision API call (live)
     st.markdown("### 🔍 Analyzing architectural style...")
     headers = {
-        "Authorization": f"Bearer YOUR_GEMINI_API_KEY"
+        "Authorization": f"Bearer {st.secrets['GEMINI_API_KEY']}"
     }
     api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
 
